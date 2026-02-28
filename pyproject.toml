@@ -1,0 +1,12 @@
+[project]
+name = "recipe-assistant"
+version = "0.1.0"
+description = "Recipe Assistant will suggest meal preferences based on the user request along with a url"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dotenv>=0.9.9",
+    "langchain-core>=1.2.16",
+    "langchain-openai>=1.1.10",
+    "langgraph>=1.0.10",
+]
