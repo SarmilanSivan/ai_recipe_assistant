@@ -9,4 +9,6 @@ dependencies = [
     "langchain-core>=1.2.16",
     "langchain-openai>=1.1.10",
     "langgraph>=1.0.10",
+    "pandas>=3.0.1",
+    "sqlalchemy>=2.0.48",
 ]

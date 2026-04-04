@@ -19,8 +19,10 @@ class AgentState(TypedDict):
     extraction_status: str
     
     # Save the SQL query
-    sql_query: str 
+    sql_query: str
 
-    # Need to define
+    # need to refine
     db_results: List[Dict[str, Any]]
     draft_response: str
+    validation_feedback: str
+    verification_status: str

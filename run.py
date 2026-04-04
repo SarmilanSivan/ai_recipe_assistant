@@ -4,9 +4,12 @@ Execution file
 """
 
 import uuid
+import warnings
 from langchain_core.messages import HumanMessage, AIMessage
 
 from agent.graph import app
+
+warnings.filterwarnings("ignore")
 
 def run_terminal_chat():
     print("========================================")

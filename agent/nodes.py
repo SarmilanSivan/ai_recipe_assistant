@@ -6,9 +6,10 @@ Defining all Nodes
 from langchain_core.messages import AIMessage, HumanMessage
 import json
 
+from database.connection import execute_sql_query
 from agent.state import AgentState
-from agent.chains import extraction_chain, sql_chain
-from agent.schemas import ExtractionResult
+from agent.chains import extraction_chain, sql_chain, recommendation_chain, verifier_chain
+from agent.schemas import ExtractionResult, VerificationResult
 
 def extraction_node(state: AgentState):
     # Extract the current known parameters from the graph state
@@ -17,7 +18,7 @@ def extraction_node(state: AgentState):
     # Invoke the chain, passing the chat history and the current JSON state
     result: ExtractionResult = extraction_chain.invoke({
         "messages": state["messages"],
-        "current_state": current_params 
+        "current_state": current_params
     })
     
     # Create an AI message object from the text the LLM generated
@@ -29,7 +30,7 @@ def extraction_node(state: AgentState):
         "avoid_ingredients": result.avoid_ingredients,
         "max_calories": result.max_calories,
         "max_prep_time": result.max_prep_time,
-        "mode_of_prep": result.mode_of_prep,
+        # "mode_of_prep": result.mode_of_prep,
         "is_sugar_free": result.is_sugar_free,
         "is_complete": result.is_complete
     }
@@ -40,7 +41,6 @@ def extraction_node(state: AgentState):
         "structured_params": updated_params,
         "extraction_status": "COMPLETE" if result.is_complete else "NEEDS_INFO"
     }
-
 
 
 def human_node(state: AgentState):
@@ -78,3 +78,81 @@ def sql_node(state: AgentState):
     
     # Update the state with the final query
     return {"sql_query": cleaned_sql}
+
+
+def db_tool_node(state: AgentState):
+    print("--- EXECUTING DATABASE QUERY ---")
+    
+    # Grab the generated query from the state
+    query = state.get("sql_query", "")
+    
+    # Pass it to the tool
+    results = execute_sql_query(query)
+    
+    # Update the LangGraph state with the exact database rows
+    return {"db_results": results}
+
+
+def recommendation_node(state: AgentState):
+    print("--- DRAFTING RECOMMENDATION ---")
+    
+    constraints = state.get("structured_params", {})
+    db_rows = state.get("db_results", [])
+    
+    # Check if the Verifier rejected the previous draft
+    feedback = state.get("validation_feedback", "")
+    
+    if feedback:
+        print(f"Applying QA Feedback to rewrite: {feedback}")
+        # Format it clearly for the LLM
+        feedback_context = f"Your previous draft was REJECTED for the following reason: '{feedback}'. Please rewrite your response to fix this exact issue."
+    else:
+        # First attempt, no feedback needed
+        feedback_context = "No previous feedback. This is your first draft."
+
+    # Invoke the LLM with the new feedback context
+    draft = recommendation_chain.invoke({
+        "user_constraints": json.dumps(constraints, indent=2),
+        "database_results": json.dumps(db_rows, indent=2),
+        "validation_feedback": feedback_context
+    })
+    
+    # Return the new draft, and clear the feedback
+    return {
+        "draft_response": draft,
+        "validation_feedback": "" 
+    }
+
+def verifier_node(state: AgentState):
+    print("--- VERIFIER AGENT RUNNING ---")
+    
+    # Grab the necessary context from the state
+    constraints = state.get("structured_params", {})
+    db_rows = state.get("db_results", [])
+    draft = state.get("draft_response", "")
+
+    if hasattr(draft, "content"):
+        draft = draft.content
+    
+    # Invoke the verifier
+    result: VerificationResult = verifier_chain.invoke({
+        "constraints": json.dumps(constraints),
+        "db_results": json.dumps(db_rows),
+        "draft": draft
+    })
+    
+    if result.is_valid:
+        print("Verification: PASS")
+        # Turn the draft into an official AI message and add it to the chat history.
+        final_message = AIMessage(content=draft)
+        return {
+            "verification_status": "PASS",
+            "messages": [final_message]
+        }
+    else:
+        print(f"Verification: FAIL - {result.feedback}")
+        # Pass the feedback so the previous node knows how to fix it.
+        return {
+            "verification_status": "FAIL",
+            "validation_feedback": result.feedback
+        }
