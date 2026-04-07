@@ -11,6 +11,8 @@ from agent.state import AgentState
 from agent.chains import extraction_chain, sql_chain, recommendation_chain, verifier_chain
 from agent.schemas import ExtractionResult, VerificationResult
 
+MAX_RETRIES = 3
+
 def extraction_node(state: AgentState):
     # Extract the current known parameters from the graph state
     current_params = state.get("structured_params", {})
@@ -133,6 +135,27 @@ def verifier_node(state: AgentState):
 
     if hasattr(draft, "content"):
         draft = draft.content
+
+    # Grab the current revision count
+    current_revision = state.get("revision_number", 0)
+
+    # The Circuit Breaker Check
+    if current_revision >= MAX_RETRIES:
+        print(f"Verification: CIRCUIT BREAKER TRIGGERED after {MAX_RETRIES} attempts.")
+        
+        # Create a safe, pre-written fallback message
+        fallback_text = "I'm having a little trouble finding a recipe that perfectly matches those constraints right now. Could we try adjusting the ingredients or the prep time?"
+        
+        final_message = AIMessage(content=fallback_text)
+        
+        # Force a PASS so the graph ends, and reset the counter
+        return {
+            "verification_status": "PASS",
+            "messages": [final_message],
+            "revision_number": 0,
+            "validation_feedback": ""
+        }
+
     
     # Invoke the verifier
     result: VerificationResult = verifier_chain.invoke({
@@ -147,12 +170,14 @@ def verifier_node(state: AgentState):
         final_message = AIMessage(content=draft)
         return {
             "verification_status": "PASS",
-            "messages": [final_message]
+            "messages": [final_message],
+            "revision_number": 0
         }
     else:
         print(f"Verification: FAIL - {result.feedback}")
         # Pass the feedback so the previous node knows how to fix it.
         return {
             "verification_status": "FAIL",
-            "validation_feedback": result.feedback
+            "validation_feedback": result.feedback,
+            "revision_number": current_revision + 1
         }

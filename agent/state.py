@@ -11,6 +11,8 @@ from langchain_core.messages import BaseMessage
 class AgentState(TypedDict):
     # Handle user, AI messages
     messages: Annotated[List[BaseMessage], add_messages]
+
+    extraction_status: str
     
     # Holds the ongoing, partially filled recipe JSON dictionary
     structured_params: Dict[str, Any]
@@ -26,3 +28,5 @@ class AgentState(TypedDict):
     draft_response: str
     validation_feedback: str
     verification_status: str
+
+    revision_number: int
