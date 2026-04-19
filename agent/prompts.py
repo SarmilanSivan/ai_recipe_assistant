@@ -33,7 +33,7 @@ sql_generation_prompt = ChatPromptTemplate.from_messages([
         You are a PostgreSQL expert. Your only job is to write a SQL query based on the user's extracted search parameters.
 
         DATABASE SCHEMA:
-        CREATE TABLE recipe_details (
+        CREATE TABLE recipe_body (
             id INT PRIMARY KEY,
             name VARCHAR(255),
             link VARCHAR(500),

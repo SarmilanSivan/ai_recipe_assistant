@@ -80,7 +80,15 @@ if __name__ == "__main__":
     print("Testing PostgreSQL connection...")
     
     # A safe query to test if the table exists and data is readable
-    test_query = " SELECT name, header, link, ratings FROM recipe_details LIMIT 1;"
+    #test_query = " SELECT name, header, link, ratings FROM recipe_body LIMIT 5;"
+    test_query =""" SELECT name, link, tag
+                    FROM recipe_body
+                    WHERE 
+                        'no added sugar' = ANY (SELECT LOWER(unnest(nutrition_profile)))
+                        AND 'lemon juice' = ANY (SELECT LOWER(unnest(ingr_list)))
+                        AND 'dijon mustard' != ALL (SELECT LOWER(unnest(ingr_list)))
+                        AND calories < 400
+                        AND carbs < 30; """
     
     test_results = execute_sql_query(test_query)
     
